@@ -41,7 +41,7 @@ def main() -> None:
 
     with os.scandir(TIMESHEET_DIR) as it:
         for entry in it:
-            if not entry.name.endswith("pdf"):
+            if not entry.name.lower().endswith(".pdf"):
                 continue
             result = run(
                 ["pdftotext", "-layout", entry.path, "-"],
