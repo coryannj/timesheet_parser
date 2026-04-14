@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/coryannj/timesheet_parser.git"
   },
-  "author": "",
+  "author": "coryannj",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/coryannj/timesheet_parser/issues"

@@ -1,0 +1,4 @@
+# timesheets.py uses only the Python standard library — no pip packages required.
+#
+# It does require the `pdftotext` command-line tool on PATH. That is a system
+# dependency (installed via your OS package manager), not a pip one. See README.md.
