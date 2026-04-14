@@ -1,2 +1,4 @@
 # timesheet_parser
-Parsing my pdf timesheets so I don't have to do it manually
+Parses my PDF timesheets, extracts hours I worked from home, and saves as .csv file for my tax return.
+
+pdftotext command line tool: https://www.xpdfreader.com/pdftotext-man.html
