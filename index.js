@@ -1,42 +1,65 @@
-import { readdirSync,writeFileSync } from 'node:fs';
+import { readdirSync,writeFileSync,existsSync,mkdirSync } from 'node:fs';
 import path from "node:path"
-import Papa from 'papaparse';
-import { execSync } from 'node:child_process'
-const folderPath = './timesheets';
-const thisYear = {}
-const s = new Date(Date.UTC(2025,6,1))
-const e = new Date(Date.UTC(2026,1,6)) // Last day I worked this FY
+import { execFileSync } from 'node:child_process'
+const inDir = '/Users/coryannj/Downloads/timesheets/timesheets';
+const outDir = '/Users/coryannj/Downloads';
+const startYear = 2025
+const s = new Date(Date.UTC(startYear,6,1))
+const e = new Date(Date.UTC(startYear+1,1,6)) // Last day I worked this FY
 
-while(s<=e){
-    if([1,2,3,4,5].includes(s.getUTCDay())){
-        let key = s.toISOString().slice(0,10).split('-').reverse().join('/')
-        thisYear[key] = Object.fromEntries([["Date",key],["Hours","0.0"],["Notes",'Leave']])
+const workingDays = (startDate,endDate) => {
+    let 
+        ms = 86400000,
+        baseRow = {'Hours':'0.0','Notes':'Leave'},
+        endMs = endDate.getTime(),
+        rows = {}
+
+    for(let d=startDate.getTime(); d<=endMs; d+=ms){
+        let newDate = new Date(d)
+        if(![1,2,3,4,5].includes(newDate.getDay())) continue;
+        let timestamp = newDate.toLocaleDateString('en-GB')
+        rows[timestamp] = {Date:timestamp, ...baseRow}
     }
-    s.setDate(s.getDate()+1)
+
+    return rows
 }
 
-readdirSync(folderPath).forEach((file)=>{
-    if(file.slice(-3) === 'pdf'){
-        let fullPath = path.join('/Users/coryannj/Downloads/timesheets/timesheets/',file)
-        let fullText = execSync('pdftotext -layout "'+fullPath+'" -').toString()
-        let workdays = fullText.matchAll(/(?<=Mon |Tue |Wed |Thu |Fri )(\d+)(?:\s+)(\w{3})(?:\s+)(\d[.]00|[(][^)]+){1}/gm)?.toArray().map((x)=>x.slice(1,4))|| []
+const parsePDFs = (timesheetDir,outputDir) => {
+    const csvRows = workingDays(s,e)
+    const months = Object.fromEntries(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((x,i)=>[x,`${i+1}`.padStart(2,'0')]))
+    const rowRegex = /(?<=Mon |Tue |Wed |Thu |Fri )(\d+) (\w{3})(?=\s+\d|\s[(])\s+[(]?(\d[.]\d|[A-Z][^)]+)/g
 
-        workdays.forEach(([dd,mmm,type])=>{
-            const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-            let monthInd = months.indexOf(mmm)
-            let dateKey = [dd,''+monthInd].map((x)=>x.padStart(2,'0')).concat(monthInd < 7 ? '2026' : '2025').join('/')
+    for (const file of readdirSync(timesheetDir)){
+        if(!file.toLowerCase().endsWith('.pdf')) continue;
+        
+        let fullText = execFileSync('pdftotext', ['-layout', path.join(timesheetDir, file), '-'], { encoding: 'utf8' });
 
-            if(thisYear[dateKey] !== undefined){
-                if(type[0] !== '('){
-                    thisYear[dateKey]['Hours'] = type.slice(0,3)
-                    thisYear[dateKey]['Notes'] = "WFH"
-                } else {
-                    thisYear[dateKey]['Notes'] = "Public Holiday"+" "+type.slice(1,-1)
-                }
+        let matches = fullText.matchAll(rowRegex)
+
+        for (const match of matches){
+            let [_,dd,mmm,type] = match
+            let monthInd = months[mmm]
+            let dateKey = `${dd.padStart(2,'0')}/${monthInd}/${+monthInd < 7 ? startYear+1 : startYear}`
+
+            if(!csvRows[dateKey]) continue;
+
+            if(type[1] === '.'){
+                csvRows[dateKey]['Hours'] = type
+                csvRows[dateKey]['Notes'] = "WFH"
+            } else {
+                csvRows[dateKey]['Notes'] = "Public Holiday - "+type
             }
-        })
+        }    
     }
-})
 
-const csv = Papa.unparse(Object.values(thisYear))
-writeFileSync(`output_${Date.now().toString()}.csv`, csv, 'utf8')
+    const csv = ['Date,Hours,Notes'].concat(Object.values(csvRows).map((x)=>Object.values(x).join(','))).join('\n')
+
+    if(!existsSync(outputDir)) mkdirSync(outputDir);
+
+    writeFileSync(path.join(outputDir,`/WFH_FY${startYear}-${startYear+1}_${Date.now().toString()}`), csv, 'utf8')
+}
+
+parsePDFs(inDir,outDir)
+
+
+
