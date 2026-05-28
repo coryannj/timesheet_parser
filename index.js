@@ -1,8 +1,8 @@
 import { readdirSync,writeFileSync,existsSync,mkdirSync } from 'node:fs';
 import path from "node:path"
 import { execFileSync } from 'node:child_process'
-const inDir = '/Users/coryannj/Downloads/timesheets/timesheets';
-const outDir = '/Users/coryannj/Downloads';
+const inDir = './timesheets';
+const outDir = './output';
 const startYear = 2025
 const s = new Date(Date.UTC(startYear,6,1))
 const e = new Date(Date.UTC(startYear+1,1,6)) // Last day I worked this FY
@@ -56,7 +56,7 @@ const parsePDFs = (timesheetDir,outputDir) => {
 
     if(!existsSync(outputDir)) mkdirSync(outputDir);
 
-    writeFileSync(path.join(outputDir,`/WFH_FY${startYear}-${startYear+1}_${Date.now().toString()}`), csv, 'utf8')
+    writeFileSync(path.join(outputDir,`WFH_FY${startYear}-${startYear+1}_${Date.now().toString()}`), csv, 'utf8')
 }
 
 parsePDFs(inDir,outDir)
