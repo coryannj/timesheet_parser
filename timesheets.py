@@ -1,54 +1,70 @@
-from datetime import date, timedelta
-import os
+from datetime import date, datetime, timedelta
 from subprocess import run
+import os
 import re
+import calendar
 import csv
 
+START_YEAR = 2025
+FY_START = date(START_YEAR, 7, 1)
+FY_END = date(START_YEAR+1, 2, 6) # Last day I worked this FY
+TIMESHEET_DIR = "./timesheets/"
+OUTPUT_DIR = "./output/"
+ROW_REGEX = re.compile("(?<=Mon |Tue |Wed |Thu |Fri )(\\d+)\\s(\\w{3})(?=\\s+\\d|\\s[(])\\s+[(]?(\\d[.]\\d|[A-Z][^)]+)")
+MONTH_INDEX = {name: i for i, name in enumerate(calendar.month_abbr[1:], start = 1)}
+
 def daterange(start_date: date, end_date: date):
-    days = int((end_date - start_date).days)
+    days = int((end_date - start_date).days) + 1
     for n in range(days):
-        newDate = start_date + datetime.timedelta(n)
-        if newDate.weekday()<5:
-            yield newDate
+        next_workday = start_date + timedelta(n)
+        if next_workday.weekday() < 5:
+            yield next_workday.strftime("%d/%m/%Y")
 
-s = datetime.date(2025,7,1)
-e = datetime.date(2026,2,7) # Last day I worked this FY
+def main() -> None:
+    csv_rows = {
+        timestamp:{
+            "Date": timestamp,
+            "Hours": "0.0",
+            "Notes": "Leave",
+        }
+        for timestamp in daterange(FY_START, FY_END)
+    }
 
-thisFY = [{"Date": single_date.strftime("%d/%m/%Y"),"Hours":"0.0","Notes":"Leave"} for single_date in daterange(s, e)]
+    with os.scandir(TIMESHEET_DIR) as folder:
+        for file in folder:
+            if not file.name.lower().endswith('.pdf'):
+                continue
 
-tDir = "/Users/coryannj/Downloads/timesheets/timesheets/"
-cPrefix = 'pdftotext -layout "'
-cSuffix = '" -'
-tRegex = re.compile("(?<=Mon |Tue |Wed |Thu |Fri )(\\d+)\\s(\\w{3})\\s+([1-8][.]0|(?:[(])[^)]+)")
-months = ['_','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+            data = run(
+                ["pdftotext", "-layout", file.path, "-"],
+                check=False,
+                capture_output=True,
+                text=True
+            )
 
-def find(lst, value):
-    for i, dic in enumerate(lst):
-        if dic['Date'] == value:
-            return i
-    return -1
+            for match in re.finditer(ROW_REGEX, data.stdout):
+                dd = match.group(1).rjust(2,'0')
+                month_ind = MONTH_INDEX[match.group(2)]
+                year = str(START_YEAR+1) if month_ind < 7 else str(START_YEAR)
+                date_key = dd+'/'+str(month_ind).rjust(2,'0')+'/'+year
 
-with os.scandir(tDir) as it:
-    for entry in it:
-        if entry.name.endswith('pdf'):
-            data = run(cPrefix + entry.path + cSuffix, capture_output=True, shell=True, text=True)
-            for m in re.finditer(tRegex,data.stdout):
-                dd = m.group(1).rjust(2,'0')
-                monthInd = months.index(m.group(2))
-                year = '2026' if monthInd < 7 else '2025'
-                dateKey = dd+'/'+str(monthInd).rjust(2,'0')+'/'+year
-                listInd = find(thisFY,dateKey)
-                if listInd >= 0:
-                    if m.group(3)[0] != '(':
-                        thisFY[listInd]['Hours'] = m.group(3)
-                        thisFY[listInd]['Notes'] = 'WFH'
-                    else:
-                        thisFY[listInd]['Notes'] = 'Public holiday - '+m.group(3)[1:]
+                if not date_key in csv_rows:
+                    continue
 
-now = datetime.datetime.now()
-keys = thisFY[0].keys()
+                if match.group(3)[1] == '.':
+                    csv_rows[date_key]['Hours'] = match.group(3)
+                    csv_rows[date_key]['Notes'] = 'WFH'
+                else:
+                    csv_rows[date_key]['Notes'] = 'Public holiday - ' + match.group(3)
 
-with open('pyoutput'+now.strftime("%d%m%Y%H%M%S")+'.csv', 'w', newline='') as output_file:
-    dict_writer = csv.DictWriter(output_file, keys)
-    dict_writer.writeheader()
-    dict_writer.writerows(thisFY)
+    if not os.path.isdir(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    now = datetime.now().strftime("%d%m%Y%H%M%S")
+
+    with open(OUTPUT_DIR + 'pyoutput' + now + '.csv', 'w', newline='', encoding="utf-8") as output_file:
+        dict_writer = csv.DictWriter(output_file, fieldnames = ['Date','Hours','Notes'])
+        dict_writer.writeheader()
+        dict_writer.writerows(list(csv_rows.values()))
+
+main()
