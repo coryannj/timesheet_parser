@@ -56,7 +56,7 @@ const parsePDFs = (timesheetDir,outputDir) => {
 
     if(!existsSync(outputDir)) mkdirSync(outputDir);
 
-    writeFileSync(path.join(outputDir,`WFH_FY${startYear}-${startYear+1}_${Date.now().toString()}`), csv, 'utf8')
+    writeFileSync(path.join(outputDir,`WFH_FY${startYear}-${startYear+1}_${Date.now().toString()}.csv`), csv, 'utf8')
 }
 
 parsePDFs(inDir,outDir)
