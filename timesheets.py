@@ -55,7 +55,7 @@ def main() -> None:
                     csv_rows[date_key]['Hours'] = match.group(3)
                     csv_rows[date_key]['Notes'] = 'WFH'
                 else:
-                    csv_rows[date_key]['Notes'] = 'Public holiday - ' + match.group(3)
+                    csv_rows[date_key]['Notes'] = 'Public Holiday - ' + match.group(3)
 
     if not os.path.isdir(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR, exist_ok=True)
